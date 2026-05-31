@@ -277,6 +277,36 @@ public class FrameComposerTests
         }
     }
 
+    [Fact]
+    public void Compose_ContrastZero_TreatedAsNeutralNotFlatGray()
+    {
+        // Regression: a settings.json written before DayNightContrast existed
+        // deserializes Contrast to 0.0. Contrast 0 must NOT flatten the frame to
+        // mid-gray (127); it should behave like 1.0 (no stretch).
+        var (dayPath, nightPath, outPath) = PrepareSyntheticInputs(SKColors.White, SKColors.Black);
+        try
+        {
+            new FrameComposer().Compose(
+                dayPath, nightPath,
+                subsolar: new SubsolarPoint(0.0, 0.0),
+                options: new CompositionOptions(TerminatorSoftnessDegrees: 3.0, OceanGlintStrength: 0.0, Contrast: 0.0),
+                width: Width, height: Height,
+                outputPath: outPath);
+
+            using var result = SKBitmap.Decode(outPath);
+            Assert.NotNull(result);
+            // Subsolar should be lit (day), antipode dark (night) — not uniform gray.
+            Assert.True(result.GetPixel(Width / 2, Height / 2).Red > 230,
+                $"subsolar should stay lit, got R={result.GetPixel(Width / 2, Height / 2).Red}");
+            Assert.True(result.GetPixel(0, Height / 2).Red < 25,
+                $"antipode should stay dark, got R={result.GetPixel(0, Height / 2).Red}");
+        }
+        finally
+        {
+            Cleanup(dayPath, nightPath, outPath);
+        }
+    }
+
     private static (string day, string night, string output) PrepareSyntheticInputs(SKColor dayColor, SKColor nightColor)
     {
         var dir = Path.Combine(Path.GetTempPath(), "BlueMarbleTests", Path.GetRandomFileName());
