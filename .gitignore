@@ -1,0 +1,51 @@
+# Build outputs
+bin/
+obj/
+out/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+ARM/
+ARM64/
+AppPackages/
+BundleArtifacts/
+*.user
+*.suo
+
+# Visual Studio
+.vs/
+*.rsuser
+*.sln.docstates
+.idea/
+.vscode/
+
+# Rider
+*.DotSettings.user
+
+# NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# .NET
+*.pdb
+*.dll
+*.exe
+*.cache
+*.tlog
+
+# Imagery cache (runtime)
+**/cache/
+**/*.aux.xml
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Audio fixture from spec
+Untitled.m4a

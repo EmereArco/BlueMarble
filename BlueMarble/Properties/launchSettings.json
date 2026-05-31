@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "BlueMarble (Unpackaged)": {
+      "commandName": "Project",
+      "nativeDebugging": false
+    }
+  }
+}
