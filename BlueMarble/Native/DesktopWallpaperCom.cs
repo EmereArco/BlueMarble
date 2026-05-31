@@ -54,12 +54,12 @@ internal interface IDesktopWallpaper
 
 internal enum DesktopWallpaperPosition : uint
 {
-    Center  = 0,
-    Tile    = 1,
+    Center = 0,
+    Tile = 1,
     Stretch = 2,
-    Fit     = 3,
-    Fill    = 4,
-    Span    = 5,
+    Fit = 3,
+    Fill = 4,
+    Span = 5,
 }
 
 internal enum DesktopSlideshowDirection : uint { Forward = 0, Backward = 1 }
@@ -74,27 +74,22 @@ internal struct NativeRect
     public int Bottom;
 }
 
+[ComImport]
+[Guid("C2CF3110-460E-4FC1-B9D0-8A1C0C9CC4BD")]
+internal class DesktopWallpaperClass { }
+
 internal static class DesktopWallpaperFactory
 {
-    private static readonly Guid CLSID_DesktopWallpaper = new("C2CF3110-460E-4FC1-B9D0-8A1C0C9CC4BD");
-
-    public static IDesktopWallpaper Create()
-    {
-        var type = Type.GetTypeFromCLSID(CLSID_DesktopWallpaper)
-            ?? throw new InvalidOperationException("DesktopWallpaper CLSID not registered");
-        var instance = Activator.CreateInstance(type)
-            ?? throw new InvalidOperationException("Failed to instantiate DesktopWallpaper");
-        return (IDesktopWallpaper)instance;
-    }
+    public static IDesktopWallpaper Create() => (IDesktopWallpaper)new DesktopWallpaperClass();
 
     public static DesktopWallpaperPosition Map(BlueMarble.Wallpaper.WallpaperPosition position) => position switch
     {
-        BlueMarble.Wallpaper.WallpaperPosition.Center  => DesktopWallpaperPosition.Center,
-        BlueMarble.Wallpaper.WallpaperPosition.Tile    => DesktopWallpaperPosition.Tile,
+        BlueMarble.Wallpaper.WallpaperPosition.Center => DesktopWallpaperPosition.Center,
+        BlueMarble.Wallpaper.WallpaperPosition.Tile => DesktopWallpaperPosition.Tile,
         BlueMarble.Wallpaper.WallpaperPosition.Stretch => DesktopWallpaperPosition.Stretch,
-        BlueMarble.Wallpaper.WallpaperPosition.Fit     => DesktopWallpaperPosition.Fit,
-        BlueMarble.Wallpaper.WallpaperPosition.Fill    => DesktopWallpaperPosition.Fill,
-        BlueMarble.Wallpaper.WallpaperPosition.Span    => DesktopWallpaperPosition.Span,
+        BlueMarble.Wallpaper.WallpaperPosition.Fit => DesktopWallpaperPosition.Fit,
+        BlueMarble.Wallpaper.WallpaperPosition.Fill => DesktopWallpaperPosition.Fill,
+        BlueMarble.Wallpaper.WallpaperPosition.Span => DesktopWallpaperPosition.Span,
         _ => DesktopWallpaperPosition.Fit,
     };
 }
