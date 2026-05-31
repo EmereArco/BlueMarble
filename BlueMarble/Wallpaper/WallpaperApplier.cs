@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using BlueMarble.Native;
@@ -79,6 +80,59 @@ public sealed class WallpaperApplier
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to set black desktop background colour");
+        }
+    }
+
+    public bool ApplyPerMonitor(IReadOnlyDictionary<string, string> perMonitor)
+    {
+        ArgumentNullException.ThrowIfNull(perMonitor);
+        if (perMonitor.Count == 0)
+        {
+            _logger.LogWarning("ApplyPerMonitor called with empty mapping");
+            return false;
+        }
+
+        WritePositionRegistry(WallpaperPosition.Center);
+        WriteBlackBackground();
+
+        IDesktopWallpaper? com = null;
+        try
+        {
+            com = DesktopWallpaperFactory.Create();
+            com.SetPosition(DesktopWallpaperPosition.Center);
+            com.SetBackgroundColor(0x000000);
+
+            var applied = 0;
+            foreach (var (monitorId, imagePath) in perMonitor)
+            {
+                if (string.IsNullOrEmpty(monitorId)) continue;
+                if (!File.Exists(imagePath))
+                {
+                    _logger.LogWarning("Per-monitor image missing for {Id}: {Path}", monitorId, imagePath);
+                    continue;
+                }
+                try
+                {
+                    com.SetWallpaper(monitorId, Path.GetFullPath(imagePath));
+                    applied++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "SetWallpaper failed for monitor {Id}", monitorId);
+                }
+            }
+            _logger.LogInformation("Applied per-monitor wallpaper on {Applied}/{Total} monitors",
+                applied, perMonitor.Count);
+            return applied > 0;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ApplyPerMonitor failed");
+            return false;
+        }
+        finally
+        {
+            if (com is not null) Marshal.ReleaseComObject(com);
         }
     }
 

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using BlueMarble.Composition;
@@ -62,15 +64,19 @@ public sealed class PrefetchRefreshController : IRefreshController
             var current = _settings.Current;
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
 
+            var monitors = MonitorEnumerator.Enumerate();
+            var (masterW, masterH) = ChooseMasterSize(monitors, current);
+
             var dayPath = await _day.EnsureEquirectangularAsync(
-                current.OutputWidth, current.OutputHeight, cts.Token).ConfigureAwait(false);
+                masterW, masterH, cts.Token).ConfigureAwait(false);
             var nightPath = await _night.EnsureEquirectangularAsync(
-                current.OutputWidth, current.OutputHeight, cts.Token).ConfigureAwait(false);
+                masterW, masterH, cts.Token).ConfigureAwait(false);
 
             var subsolar = SolarGeometry.GetSubsolarPoint(DateTimeOffset.UtcNow);
-            var outputPath = Path.Combine(
+            var outputDir = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "BlueMarble", "current.png");
+                "BlueMarble");
+            var masterPath = Path.Combine(outputDir, "current.png");
 
             var compositionOptions = new CompositionOptions(
                 TerminatorSoftnessDegrees: current.TerminatorSoftnessDegrees,
@@ -81,17 +87,37 @@ public sealed class PrefetchRefreshController : IRefreshController
                 dayPath, nightPath,
                 subsolar,
                 compositionOptions,
-                current.OutputWidth, current.OutputHeight,
-                outputPath,
+                masterW, masterH,
+                masterPath,
                 cts.Token).ConfigureAwait(false);
 
             LastFramePath = produced;
             _logger.LogInformation(
-                "Frame composed at {Path} (subsolar lat={Lat:F2} lon={Lon:F2})",
-                produced, subsolar.LatitudeDegrees, subsolar.LongitudeDegrees);
+                "Master frame {W}x{H} composed at {Path} (subsolar lat={Lat:F2} lon={Lon:F2}); {Count} monitor(s)",
+                masterW, masterH, produced, subsolar.LatitudeDegrees, subsolar.LongitudeDegrees, monitors.Count);
 
-            var applied = _wallpaper.Apply(produced, current.WallpaperPosition);
-            _logger.LogInformation("Wallpaper apply result: {Result}", applied);
+            if (monitors.Count == 0)
+            {
+                var applied = _wallpaper.Apply(produced, current.WallpaperPosition);
+                _logger.LogInformation("Wallpaper apply (single) result: {Result}", applied);
+                return;
+            }
+
+            var perMonitor = new Dictionary<string, string>(monitors.Count);
+            for (var i = 0; i < monitors.Count; i++)
+            {
+                var m = monitors[i];
+                var perPath = Path.Combine(outputDir, $"current_m{i}.png");
+                await Task.Run(
+                    () => MonitorFrame.RenderLetterbox(produced, m.Width, m.Height, perPath),
+                    cts.Token).ConfigureAwait(false);
+                perMonitor[m.Id] = perPath;
+                _logger.LogInformation("Per-monitor frame {Index} {W}x{H} -> {Path}",
+                    i, m.Width, m.Height, perPath);
+            }
+
+            var appliedPm = _wallpaper.ApplyPerMonitor(perMonitor);
+            _logger.LogInformation("Wallpaper apply (per-monitor) result: {Result}", appliedPm);
         }
         catch (Exception ex)
         {
@@ -101,5 +127,20 @@ public sealed class PrefetchRefreshController : IRefreshController
         {
             _gate.Release();
         }
+    }
+
+    private static (int Width, int Height) ChooseMasterSize(
+        IReadOnlyList<MonitorInfo> monitors, AppSettings settings)
+    {
+        const int Cap = 8192;
+        if (monitors.Count == 0)
+        {
+            return (settings.OutputWidth, settings.OutputHeight);
+        }
+
+        var needed = monitors.Max(m => Math.Max(m.Width, m.Height * 2));
+        var w = Math.Clamp(needed, 1920, Cap);
+        if ((w & 1) != 0) w++;
+        return (w, w / 2);
     }
 }
