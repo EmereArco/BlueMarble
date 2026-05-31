@@ -23,6 +23,7 @@
     <Compile Include="..\BlueMarble\Composition\SolarGeometry.cs" Link="Composition\SolarGeometry.cs" />
     <Compile Include="..\BlueMarble\Composition\FrameComposer.cs" Link="Composition\FrameComposer.cs" />
     <Compile Include="..\BlueMarble\Wallpaper\WallpaperPosition.cs" Link="Wallpaper\WallpaperPosition.cs" />
+    <Compile Include="..\BlueMarble\Imagery\GibsCapabilities.cs" Link="Imagery\GibsCapabilities.cs" />
   </ItemGroup>
 
 </Project>

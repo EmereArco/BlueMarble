@@ -47,12 +47,9 @@ public sealed class PrefetchRefreshController : IRefreshController
 
     public async Task ForceRefreshAsync()
     {
-        if (IsPaused)
-        {
-            _logger.LogInformation("Refresh requested but controller is paused");
-            return;
-        }
-
+        // A "force" refresh is explicit (manual tray command or scheduler tick that
+        // already honored the pause state) — it always runs. Pause is enforced by the
+        // RefreshScheduler for the periodic loop, not here.
         if (!await _gate.WaitAsync(0).ConfigureAwait(false))
         {
             _logger.LogInformation("Refresh already in progress, skipping");
@@ -81,7 +78,8 @@ public sealed class PrefetchRefreshController : IRefreshController
             var compositionOptions = new CompositionOptions(
                 TerminatorSoftnessDegrees: current.TerminatorSoftnessDegrees,
                 OceanGlintStrength: current.OceanGlintStrength,
-                OceanGlintRadiusDegrees: current.OceanGlintRadiusDegrees);
+                OceanGlintRadiusDegrees: current.OceanGlintRadiusDegrees,
+                Contrast: current.DayNightContrast);
 
             var produced = await _composer.ComposeAsync(
                 dayPath, nightPath,

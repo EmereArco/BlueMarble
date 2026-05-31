@@ -93,7 +93,7 @@ public sealed class AppServices
             loggerFactory.CreateLogger<PrefetchRefreshController>());
         var scheduler = new RefreshScheduler(refresh, settings,
             loggerFactory.CreateLogger<RefreshScheduler>());
-        var trayHost = new TrayIconHost(loggerFactory.CreateLogger<TrayIconHost>(), refresh);
+        var trayHost = new TrayIconHost(loggerFactory.CreateLogger<TrayIconHost>(), refresh, settings);
 
         return new AppServices
         {

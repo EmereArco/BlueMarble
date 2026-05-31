@@ -36,13 +36,16 @@ public sealed class RefreshScheduler : IDisposable
 
     private async Task RunAsync(CancellationToken ct)
     {
-        try
+        if (!_refresh.IsPaused)
         {
-            await _refresh.ForceRefreshAsync().ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Initial refresh failed");
+            try
+            {
+                await _refresh.ForceRefreshAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Initial refresh failed");
+            }
         }
 
         while (!ct.IsCancellationRequested)
@@ -54,6 +57,12 @@ public sealed class RefreshScheduler : IDisposable
             catch (OperationCanceledException)
             {
                 return;
+            }
+
+            if (_refresh.IsPaused)
+            {
+                _logger.LogInformation("Scheduled refresh skipped (paused)");
+                continue;
             }
 
             try

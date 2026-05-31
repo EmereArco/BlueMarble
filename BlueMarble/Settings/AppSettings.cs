@@ -26,6 +26,10 @@ public sealed record AppSettings
     public double OceanGlintStrength { get; init; } = 0.6;
     public double OceanGlintRadiusDegrees { get; init; } = 35.0;
 
+    /// <summary>Contrast stretch applied to the composite (1.0 = none). Slightly &gt;1
+    /// widens the day/night brightness separation.</summary>
+    public double DayNightContrast { get; init; } = 1.15;
+
     public WallpaperPosition WallpaperPosition { get; init; } = WallpaperPosition.Fit;
 
     public static AppSettings Default { get; } = new();
@@ -55,6 +59,9 @@ public sealed class SettingsStore
     }
 
     public AppSettings Current => _current;
+
+    /// <summary>Absolute path of the settings.json file backing this store.</summary>
+    public string FilePath => _path;
 
     public event EventHandler<AppSettings>? Changed;
 
