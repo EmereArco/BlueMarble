@@ -35,6 +35,7 @@ public partial class App : Application
         Services.Logger.LogInformation("BlueMarble starting (version {Version})", AppInfo.Version);
 
         Services.Settings.Load();
+        Services.Settings.StartWatching();
         Services.Cache.PruneOlderThan(TimeSpan.FromDays(30));
         Services.TrayHost.Show();
         Services.Scheduler.Start();

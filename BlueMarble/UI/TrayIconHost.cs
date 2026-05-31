@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using BlueMarble.Settings;
 using H.NotifyIcon;
 using Microsoft.Extensions.Logging;
@@ -10,6 +11,26 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace BlueMarble.UI;
+
+/// <summary>
+/// Minimal ICommand wrapper. H.NotifyIcon's default PopupMenu mode (the only mode that
+/// works reliably in unpackaged apps) builds a native Win32 menu and invokes each
+/// MenuFlyoutItem's <see cref="ICommand"/> — it does NOT raise the Click event. So every
+/// tray menu item must expose its action as a Command, not a Click handler.
+/// </summary>
+internal sealed class RelayCommand : ICommand
+{
+    private readonly Action _execute;
+
+    public RelayCommand(Action execute) => _execute = execute;
+
+    // Always executable; the event is required by ICommand but never raised.
+    public event EventHandler? CanExecuteChanged { add { } remove { } }
+
+    public bool CanExecute(object? parameter) => true;
+
+    public void Execute(object? parameter) => _execute();
+}
 
 public interface IRefreshController
 {
@@ -77,71 +98,91 @@ public sealed class TrayIconHost : IDisposable
 
     private MenuFlyout BuildMenu()
     {
+        // NOTE: items use Command, not Click — see RelayCommand for why.
         var menu = new MenuFlyout();
 
         var pauseItem = new ToggleMenuFlyoutItem { Text = "Pausa", IsChecked = _refresh.IsPaused };
-        pauseItem.Click += (_, _) =>
+        pauseItem.Command = new RelayCommand(() =>
         {
-            if (pauseItem.IsChecked) _refresh.Pause(); else _refresh.Resume();
+            if (_refresh.IsPaused) _refresh.Resume(); else _refresh.Pause();
+            pauseItem.IsChecked = _refresh.IsPaused;
             _logger.LogInformation("Refresh paused = {Paused}", _refresh.IsPaused);
-        };
+        });
         menu.Items.Add(pauseItem);
 
         // Keep the checkmark in sync with the actual state every time the menu opens.
         menu.Opening += (_, _) => pauseItem.IsChecked = _refresh.IsPaused;
 
         var refreshItem = new MenuFlyoutItem { Text = "Aggiorna ora" };
-        refreshItem.Click += async (_, _) =>
+        refreshItem.Command = new RelayCommand(() =>
         {
-            try
-            {
-                _logger.LogInformation("Manual refresh requested from tray");
-                await _refresh.ForceRefreshAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Force refresh failed");
-            }
-        };
+            _logger.LogInformation("Manual refresh requested from tray");
+            _ = ForceRefreshSafeAsync();
+        });
         menu.Items.Add(refreshItem);
 
         menu.Items.Add(new MenuFlyoutSeparator());
 
         var settingsItem = new MenuFlyoutItem { Text = "Impostazioni…" };
-        settingsItem.Click += (_, _) => OpenSettings();
+        settingsItem.Command = new RelayCommand(OpenSettings);
         menu.Items.Add(settingsItem);
 
         menu.Items.Add(new MenuFlyoutSeparator());
 
         var exitItem = new MenuFlyoutItem { Text = "Esci" };
-        exitItem.Click += (_, _) =>
+        exitItem.Command = new RelayCommand(() =>
         {
             _logger.LogInformation("Exit requested from tray");
             App.Current.Exit();
-        };
+        });
         menu.Items.Add(exitItem);
 
         return menu;
     }
 
+    private async Task ForceRefreshSafeAsync()
+    {
+        try
+        {
+            await _refresh.ForceRefreshAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Force refresh failed");
+        }
+    }
+
     private void OpenSettings()
     {
         var path = _settings.FilePath;
+
+        // Settings.json is written on first Load(); ensure it exists before opening.
+        if (!File.Exists(path))
+        {
+            _settings.Save();
+        }
+
+        // Open with Notepad explicitly: many systems have no default handler for .json,
+        // so a shell-execute on the file silently fails. Notepad always ships with Windows.
         try
         {
-            // Settings.json is written on first Load(); ensure it exists before opening.
-            if (!File.Exists(path))
-            {
-                _settings.Save();
-            }
+            _logger.LogInformation("Opening settings file in Notepad {Path}", path);
+            Process.Start(new ProcessStartInfo("notepad.exe", $"\"{path}\"") { UseShellExecute = true });
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Notepad failed; trying default handler for {Path}", path);
+        }
 
-            _logger.LogInformation("Opening settings file {Path}", path);
+        // Fall back to the default .json handler, then to revealing it in Explorer.
+        try
+        {
             Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Could not open settings file {Path}", path);
-            // Fall back to revealing the file in Explorer if no .json handler is set.
+            _logger.LogError(ex, "Could not open settings file {Path}; revealing in Explorer", path);
             try
             {
                 Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"")
