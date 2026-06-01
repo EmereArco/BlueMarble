@@ -25,9 +25,9 @@ The published binary is **self-contained**: no .NET runtime install needed.
 
 ### Option A — Pre-built binary
 
-1. Grab the latest `BlueMarble.exe` from the [Releases](https://github.com/EmereArco/BlueMarble/releases) page (when available) or from the publish output of a local build (see Option B).
-2. Place it anywhere you like, e.g. `%LOCALAPPDATA%\Programs\BlueMarble\BlueMarble.exe`.
-3. Double-click to run. A globe icon appears in the system tray.
+1. Download `BlueMarble-v1.0.0-win-x64.zip` from the [latest release](https://github.com/EmereArco/BlueMarble/releases/latest).
+2. Extract the whole folder anywhere you like, e.g. `%LOCALAPPDATA%\Programs\BlueMarble\`. Keep `BlueMarble.exe` together with its sibling DLLs and `Assets` folder — the build is self-contained but **not** a single file, so the `.exe` won't run on its own.
+3. Double-click `BlueMarble.exe` to run. A globe icon appears in the system tray.
 4. (Optional) To auto-start at login, add the path to `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`:
    ```powershell
    New-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' `
@@ -49,17 +49,16 @@ cd BlueMarble
 # Run tests (pure .NET, dotnet CLI works fine for these)
 dotnet test BlueMarble.Tests/BlueMarble.Tests.csproj -c Debug
 
-# Publish a self-contained, single-file release (x64)
+# Publish a self-contained release (x64) — produces a folder, not a single file
 & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe" `
   BlueMarble\BlueMarble.csproj `
   -t:Publish `
   -p:Configuration=Release `
   -p:Platform=x64 `
-  -p:RuntimeIdentifier=win-x64 `
-  -p:EnableMsixTooling=true
+  -p:RuntimeIdentifier=win-x64
 ```
 
-Output: `BlueMarble\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish\BlueMarble.exe`.
+Output folder: `BlueMarble\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish\` — run `BlueMarble.exe` from there (it needs the surrounding DLLs).
 
 For ARM64, replace `x64` / `win-x64` with `ARM64` / `win-arm64`.
 
