@@ -21,7 +21,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <AssemblyTitle>BlueMarble Desktop</AssemblyTitle>
     <Product>BlueMarble Desktop</Product>
-    <Version>0.1.0</Version>
+    <Version>1.1.0</Version>
     <ApplicationIcon>Assets\BlueMarble.ico</ApplicationIcon>
   </PropertyGroup>
 
