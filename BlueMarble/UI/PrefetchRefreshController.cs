@@ -15,6 +15,7 @@ namespace BlueMarble.UI;
 public sealed class PrefetchRefreshController : IRefreshController
 {
     private readonly BlueMarbleProvider _day;
+    private readonly HybridDayProvider _trueColorDay;
     private readonly BlackMarbleProvider _night;
     private readonly FrameComposer _composer;
     private readonly WallpaperApplier _wallpaper;
@@ -24,6 +25,7 @@ public sealed class PrefetchRefreshController : IRefreshController
 
     public PrefetchRefreshController(
         BlueMarbleProvider day,
+        HybridDayProvider trueColorDay,
         BlackMarbleProvider night,
         FrameComposer composer,
         WallpaperApplier wallpaper,
@@ -31,6 +33,7 @@ public sealed class PrefetchRefreshController : IRefreshController
         ILogger<PrefetchRefreshController> logger)
     {
         _day = day;
+        _trueColorDay = trueColorDay;
         _night = night;
         _composer = composer;
         _wallpaper = wallpaper;
@@ -64,10 +67,15 @@ public sealed class PrefetchRefreshController : IRefreshController
             var monitors = MonitorEnumerator.Enumerate();
             var (masterW, masterH) = ChooseMasterSize(monitors, current);
 
-            var dayPath = await _day.EnsureEquirectangularAsync(
+            IImageryProvider dayProvider = current.UseDailyTrueColor ? _trueColorDay : _day;
+            var dayPath = await dayProvider.EnsureEquirectangularAsync(
                 masterW, masterH, cts.Token).ConfigureAwait(false);
-            var nightPath = await _night.EnsureEquirectangularAsync(
-                masterW, masterH, cts.Token).ConfigureAwait(false);
+
+            // With city lights off the dark side is derived from the day texture, so the night
+            // imagery is never decoded — skip fetching it and hand the composer the day path.
+            var nightPath = current.ShowCityLights
+                ? await _night.EnsureEquirectangularAsync(masterW, masterH, cts.Token).ConfigureAwait(false)
+                : dayPath;
 
             var subsolar = SolarGeometry.GetSubsolarPoint(DateTimeOffset.UtcNow);
             var outputDir = Path.Combine(
@@ -79,7 +87,8 @@ public sealed class PrefetchRefreshController : IRefreshController
                 TerminatorSoftnessDegrees: current.TerminatorSoftnessDegrees,
                 OceanGlintStrength: current.OceanGlintStrength,
                 OceanGlintRadiusDegrees: current.OceanGlintRadiusDegrees,
-                Contrast: current.DayNightContrast);
+                Contrast: current.DayNightContrast,
+                ShowCityLights: current.ShowCityLights);
 
             var produced = await _composer.ComposeAsync(
                 dayPath, nightPath,

@@ -307,6 +307,41 @@ public class FrameComposerTests
         }
     }
 
+    [Fact]
+    public void Compose_CityLightsOff_DarkSideIsDimmedDayNotNightTexture()
+    {
+        // Day = white, night texture = bright red. With city lights off the dark side must be
+        // derived from the (dimmed) day texture, never the night texture: so the antipode is a
+        // dim neutral gray (R≈G≈B, moderate), not red.
+        var (dayPath, nightPath, outPath) = PrepareSyntheticInputs(SKColors.White, SKColors.Red);
+        try
+        {
+            new FrameComposer().Compose(
+                dayPath, nightPath,
+                subsolar: new SubsolarPoint(0.0, 0.0),
+                options: new CompositionOptions(
+                    TerminatorSoftnessDegrees: 3.0, OceanGlintStrength: 0.0, ShowCityLights: false),
+                width: Width, height: Height,
+                outputPath: outPath);
+
+            using var result = SKBitmap.Decode(outPath);
+            Assert.NotNull(result);
+
+            // Subsolar still fully lit from the day texture.
+            Assert.True(result.GetPixel(Width / 2, Height / 2).Red > 230);
+
+            // Antipode: dim gray from the day texture, not the red night texture.
+            var anti = result.GetPixel(0, Height / 2);
+            Assert.InRange((int)anti.Red, 20, 70);
+            Assert.True(System.Math.Abs(anti.Red - anti.Green) <= 4 && System.Math.Abs(anti.Red - anti.Blue) <= 4,
+                $"dark side should be neutral (dimmed day), got R={anti.Red} G={anti.Green} B={anti.Blue}");
+        }
+        finally
+        {
+            Cleanup(dayPath, nightPath, outPath);
+        }
+    }
+
     private static (string day, string night, string output) PrepareSyntheticInputs(SKColor dayColor, SKColor nightColor)
     {
         var dir = Path.Combine(Path.GetTempPath(), "BlueMarbleTests", Path.GetRandomFileName());

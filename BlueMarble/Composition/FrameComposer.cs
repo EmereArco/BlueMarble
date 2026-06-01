@@ -10,7 +10,8 @@ public sealed record CompositionOptions(
     double TerminatorSoftnessDegrees = 22.0,
     double OceanGlintStrength = 0.6,
     double OceanGlintRadiusDegrees = 35.0,
-    double Contrast = 1.0)
+    double Contrast = 1.0,
+    bool ShowCityLights = true)
 {
     public static CompositionOptions Default { get; } = new();
 
@@ -21,6 +22,13 @@ public sealed record CompositionOptions(
 public sealed class FrameComposer
 {
     private const double DegToRad = Math.PI / 180.0;
+
+    /// <summary>
+    /// When <see cref="CompositionOptions.ShowCityLights"/> is false the dark side is rendered
+    /// as the day texture dimmed by this factor ("earth in twilight") instead of the VIIRS
+    /// city-lights layer. Low enough to read as night, high enough to keep terrain faintly visible.
+    /// </summary>
+    private const double NightDimFactor = 0.16;
 
     public string Compose(
         string dayPath,
@@ -38,7 +46,9 @@ public sealed class FrameComposer
         if (width <= 1 || height <= 1) throw new ArgumentOutOfRangeException(nameof(width));
 
         using var day = LoadResized(dayPath, width, height);
-        using var night = LoadResized(nightPath, width, height);
+        // The night texture is only needed when city lights are shown; otherwise the dark
+        // side is derived from the day texture, so we skip decoding it entirely.
+        using var night = options.ShowCityLights ? LoadResized(nightPath, width, height) : null;
         cancellationToken.ThrowIfCancellationRequested();
 
         var info = new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Opaque);
@@ -93,7 +103,7 @@ public sealed class FrameComposer
 
     private static void Blend(
         SKBitmap day,
-        SKBitmap night,
+        SKBitmap? night,
         SKBitmap output,
         SubsolarPoint subsolar,
         CompositionOptions options,
@@ -127,7 +137,7 @@ public sealed class FrameComposer
         unsafe
         {
             var dayPtr = (byte*)day.GetPixels().ToPointer();
-            var nightPtr = (byte*)night.GetPixels().ToPointer();
+            var nightPtr = night is null ? null : (byte*)night.GetPixels().ToPointer();
             var outPtr = (byte*)output.GetPixels().ToPointer();
             var rowBytes = output.RowBytes;
 
@@ -143,7 +153,7 @@ public sealed class FrameComposer
                 var rowB = cosLat * cosDecl;
 
                 var dayRow = dayPtr + y * rowBytes;
-                var nightRow = nightPtr + y * rowBytes;
+                var nightRow = nightPtr is null ? null : nightPtr + y * rowBytes;
                 var outRow = outPtr + y * rowBytes;
 
                 for (var x = 0; x < w; x++)
@@ -155,12 +165,24 @@ public sealed class FrameComposer
                     var t = Smoothstep(-softCos, softCos, cosZ);
 
                     var px = x * 4;
-                    var nB = nightRow[px + 0];
-                    var nG = nightRow[px + 1];
-                    var nR = nightRow[px + 2];
                     var dB = dayRow[px + 0];
                     var dG = dayRow[px + 1];
                     var dR = dayRow[px + 2];
+
+                    // City lights on: dark side = night texture. Off: dark side = dimmed day texture.
+                    double nB, nG, nR;
+                    if (nightRow is not null)
+                    {
+                        nB = nightRow[px + 0];
+                        nG = nightRow[px + 1];
+                        nR = nightRow[px + 2];
+                    }
+                    else
+                    {
+                        nB = dB * NightDimFactor;
+                        nG = dG * NightDimFactor;
+                        nR = dR * NightDimFactor;
+                    }
 
                     var b = nB + (dB - nB) * t;
                     var g = nG + (dG - nG) * t;
