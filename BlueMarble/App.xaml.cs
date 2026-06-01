@@ -63,6 +63,8 @@ public sealed class AppServices
     public required TileCache Cache { get; init; }
     public required GibsWmsClient Gibs { get; init; }
     public required BlueMarbleProvider Day { get; init; }
+    public required ModisTrueColorProvider TrueColorDay { get; init; }
+    public required HybridDayProvider HybridDay { get; init; }
     public required BlackMarbleProvider Night { get; init; }
     public required FrameComposer Composer { get; init; }
     public required WallpaperApplier WallpaperApplier { get; init; }
@@ -87,10 +89,12 @@ public sealed class AppServices
         var cache = new TileCache(loggerFactory.CreateLogger<TileCache>());
         var gibs = new GibsWmsClient(http, loggerFactory.CreateLogger<GibsWmsClient>());
         var day = new BlueMarbleProvider(gibs, cache, loggerFactory.CreateLogger<BlueMarbleProvider>());
+        var trueColorDay = new ModisTrueColorProvider(gibs, cache, loggerFactory.CreateLogger<ModisTrueColorProvider>());
+        var hybridDay = new HybridDayProvider(day, trueColorDay, cache, loggerFactory.CreateLogger<HybridDayProvider>());
         var night = new BlackMarbleProvider(gibs, cache, loggerFactory.CreateLogger<BlackMarbleProvider>());
         var composer = new FrameComposer();
         var wallpaper = new WallpaperApplier(loggerFactory.CreateLogger<WallpaperApplier>());
-        var refresh = new PrefetchRefreshController(day, night, composer, wallpaper, settings,
+        var refresh = new PrefetchRefreshController(day, hybridDay, night, composer, wallpaper, settings,
             loggerFactory.CreateLogger<PrefetchRefreshController>());
         var scheduler = new RefreshScheduler(refresh, settings,
             loggerFactory.CreateLogger<RefreshScheduler>());
@@ -105,6 +109,8 @@ public sealed class AppServices
             Cache = cache,
             Gibs = gibs,
             Day = day,
+            TrueColorDay = trueColorDay,
+            HybridDay = hybridDay,
             Night = night,
             Composer = composer,
             WallpaperApplier = wallpaper,
@@ -117,5 +123,5 @@ public sealed class AppServices
 
 internal static class AppInfo
 {
-    public const string Version = "0.1.0";
+    public const string Version = "1.1.0";
 }
