@@ -22,14 +22,17 @@
     <AssemblyTitle>BlueMarble Desktop</AssemblyTitle>
     <Product>BlueMarble Desktop</Product>
     <Version>0.1.0</Version>
+    <ApplicationIcon>Assets\BlueMarble.ico</ApplicationIcon>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <PublishAot>false</PublishAot>
     <PublishTrimmed>false</PublishTrimmed>
-    <PublishSingleFile>true</PublishSingleFile>
-    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <!-- Single-file publish is disabled: WindowsAppSDK 1.6 fails to resolve
+         Microsoft.WinUI from a bundled single-file exe at startup
+         (FileNotFoundException), and it also requires EnableMsixTooling for
+         resources.pri generation. A self-contained folder publish is stable. -->
+    <PublishSingleFile>false</PublishSingleFile>
     <DebugType>embedded</DebugType>
   </PropertyGroup>
 

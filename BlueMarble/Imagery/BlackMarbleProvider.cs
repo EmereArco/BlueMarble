@@ -25,7 +25,10 @@ public sealed class BlackMarbleProvider : IImageryProvider
 
     public async Task<string> EnsureEquirectangularAsync(int width, int height, CancellationToken cancellationToken)
     {
-        var date = ImageryLayers.BlackMarbleDate;
+        // Use the latest date the service advertises; fall back to a known-good date
+        // if capabilities are unavailable (offline, service hiccup).
+        var date = await _client.GetLatestDateAsync(Layer, cancellationToken).ConfigureAwait(false)
+                   ?? ImageryLayers.BlackMarbleFallbackDate;
 
         if (_cache.TryGet(Layer, date, width, height, out var existing))
         {

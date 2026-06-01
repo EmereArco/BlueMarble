@@ -36,13 +36,16 @@ public sealed class RefreshScheduler : IDisposable
 
     private async Task RunAsync(CancellationToken ct)
     {
-        try
+        if (!_refresh.IsPaused)
         {
-            await _refresh.ForceRefreshAsync().ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Initial refresh failed");
+            try
+            {
+                await _refresh.ForceRefreshAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Initial refresh failed");
+            }
         }
 
         while (!ct.IsCancellationRequested)
@@ -54,6 +57,12 @@ public sealed class RefreshScheduler : IDisposable
             catch (OperationCanceledException)
             {
                 return;
+            }
+
+            if (_refresh.IsPaused)
+            {
+                _logger.LogInformation("Scheduled refresh skipped (paused)");
+                continue;
             }
 
             try
@@ -74,6 +83,26 @@ public sealed class RefreshScheduler : IDisposable
         {
             _logger.LogInformation("Refresh interval changed {Old} -> {New}", _interval, next);
             _interval = next;
+        }
+
+        // Re-render so visual changes (contrast, glint, wallpaper position, output size)
+        // take effect immediately rather than only on the next scheduled tick.
+        if (!_refresh.IsPaused)
+        {
+            _logger.LogInformation("Settings changed; recomposing wallpaper now");
+            _ = RecomposeAsync();
+        }
+    }
+
+    private async Task RecomposeAsync()
+    {
+        try
+        {
+            await _refresh.ForceRefreshAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Refresh after settings change failed");
         }
     }
 

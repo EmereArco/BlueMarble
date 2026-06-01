@@ -9,7 +9,8 @@ namespace BlueMarble.Composition;
 public sealed record CompositionOptions(
     double TerminatorSoftnessDegrees = 22.0,
     double OceanGlintStrength = 0.6,
-    double OceanGlintRadiusDegrees = 35.0)
+    double OceanGlintRadiusDegrees = 35.0,
+    double Contrast = 1.0)
 {
     public static CompositionOptions Default { get; } = new();
 
@@ -114,6 +115,15 @@ public sealed class FrameComposer
         var glintInvSigmaSq = 1.0 / (glintSigmaRad * glintSigmaRad);
         var glintPeak = options.OceanGlintStrength * 220.0;
 
+        // Contrast stretch around mid-gray: pushes the bright day side brighter and
+        // the dark night side darker, widening the day/night separation.
+        // Guard against a non-positive value (e.g. a settings.json written before this
+        // option existed deserializes Contrast to 0.0): treat <= 0 as "no stretch", as
+        // contrast 0 would flatten every pixel to mid-gray.
+        const double ContrastPivot = 127.5;
+        var contrast = options.Contrast <= 0.0 ? 1.0 : options.Contrast;
+        var applyContrast = Math.Abs(contrast - 1.0) > 1e-6;
+
         unsafe
         {
             var dayPtr = (byte*)day.GetPixels().ToPointer();
@@ -170,9 +180,16 @@ public sealed class FrameComposer
                         }
                     }
 
-                    outRow[px + 0] = (byte)Math.Min(255.0, b);
-                    outRow[px + 1] = (byte)Math.Min(255.0, g);
-                    outRow[px + 2] = (byte)Math.Min(255.0, r);
+                    if (applyContrast)
+                    {
+                        b = (b - ContrastPivot) * contrast + ContrastPivot;
+                        g = (g - ContrastPivot) * contrast + ContrastPivot;
+                        r = (r - ContrastPivot) * contrast + ContrastPivot;
+                    }
+
+                    outRow[px + 0] = (byte)Math.Clamp(b, 0.0, 255.0);
+                    outRow[px + 1] = (byte)Math.Clamp(g, 0.0, 255.0);
+                    outRow[px + 2] = (byte)Math.Clamp(r, 0.0, 255.0);
                     outRow[px + 3] = 0xFF;
                 }
             }

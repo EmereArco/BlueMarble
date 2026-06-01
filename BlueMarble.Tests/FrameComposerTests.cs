@@ -208,6 +208,105 @@ public class FrameComposerTests
         }
     }
 
+    [Fact]
+    public void Compose_Contrast_DeepensNightAndBrightensDay()
+    {
+        // Mid-tone day and night so the contrast stretch can push both ways.
+        var day = new SKColor(200, 200, 200);
+        var night = new SKColor(60, 60, 60);
+        var (dayPath, nightPath, outFlat) = PrepareSyntheticInputs(day, night);
+        var outPunchy = outFlat + ".punchy.png";
+
+        try
+        {
+            var composer = new FrameComposer();
+            composer.Compose(dayPath, nightPath,
+                subsolar: new SubsolarPoint(0.0, 0.0),
+                options: new CompositionOptions(TerminatorSoftnessDegrees: 3.0, OceanGlintStrength: 0.0, Contrast: 1.0),
+                width: Width, height: Height,
+                outputPath: outFlat);
+
+            composer.Compose(dayPath, nightPath,
+                subsolar: new SubsolarPoint(0.0, 0.0),
+                options: new CompositionOptions(TerminatorSoftnessDegrees: 3.0, OceanGlintStrength: 0.0, Contrast: 1.6),
+                width: Width, height: Height,
+                outputPath: outPunchy);
+
+            using var flat = SKBitmap.Decode(outFlat);
+            using var punchy = SKBitmap.Decode(outPunchy);
+            Assert.NotNull(flat);
+            Assert.NotNull(punchy);
+
+            // Night side (antipodal, left edge) gets darker; day side (subsolar center) gets brighter.
+            var flatNight = flat.GetPixel(0, Height / 2).Red;
+            var punchyNight = punchy.GetPixel(0, Height / 2).Red;
+            var flatDay = flat.GetPixel(Width / 2, Height / 2).Red;
+            var punchyDay = punchy.GetPixel(Width / 2, Height / 2).Red;
+
+            Assert.True(punchyNight < flatNight, $"night should darken: flat={flatNight} punchy={punchyNight}");
+            Assert.True(punchyDay > flatDay, $"day should brighten: flat={flatDay} punchy={punchyDay}");
+        }
+        finally
+        {
+            Cleanup(dayPath, nightPath, outFlat, outPunchy);
+        }
+    }
+
+    [Fact]
+    public void Compose_ContrastOne_IsNeutral()
+    {
+        // Contrast 1.0 must be a no-op versus the existing default behavior.
+        var (dayPath, nightPath, outPath) = PrepareSyntheticInputs(SKColors.White, SKColors.Black);
+        try
+        {
+            new FrameComposer().Compose(
+                dayPath, nightPath,
+                subsolar: new SubsolarPoint(0.0, 0.0),
+                options: new CompositionOptions(TerminatorSoftnessDegrees: 3.0, OceanGlintStrength: 0.0, Contrast: 1.0),
+                width: Width, height: Height,
+                outputPath: outPath);
+
+            using var result = SKBitmap.Decode(outPath);
+            Assert.NotNull(result);
+            Assert.True(result.GetPixel(Width / 2, Height / 2).Red > 230);
+            Assert.True(result.GetPixel(0, Height / 2).Red < 25);
+        }
+        finally
+        {
+            Cleanup(dayPath, nightPath, outPath);
+        }
+    }
+
+    [Fact]
+    public void Compose_ContrastZero_TreatedAsNeutralNotFlatGray()
+    {
+        // Regression: a settings.json written before DayNightContrast existed
+        // deserializes Contrast to 0.0. Contrast 0 must NOT flatten the frame to
+        // mid-gray (127); it should behave like 1.0 (no stretch).
+        var (dayPath, nightPath, outPath) = PrepareSyntheticInputs(SKColors.White, SKColors.Black);
+        try
+        {
+            new FrameComposer().Compose(
+                dayPath, nightPath,
+                subsolar: new SubsolarPoint(0.0, 0.0),
+                options: new CompositionOptions(TerminatorSoftnessDegrees: 3.0, OceanGlintStrength: 0.0, Contrast: 0.0),
+                width: Width, height: Height,
+                outputPath: outPath);
+
+            using var result = SKBitmap.Decode(outPath);
+            Assert.NotNull(result);
+            // Subsolar should be lit (day), antipode dark (night) — not uniform gray.
+            Assert.True(result.GetPixel(Width / 2, Height / 2).Red > 230,
+                $"subsolar should stay lit, got R={result.GetPixel(Width / 2, Height / 2).Red}");
+            Assert.True(result.GetPixel(0, Height / 2).Red < 25,
+                $"antipode should stay dark, got R={result.GetPixel(0, Height / 2).Red}");
+        }
+        finally
+        {
+            Cleanup(dayPath, nightPath, outPath);
+        }
+    }
+
     private static (string day, string night, string output) PrepareSyntheticInputs(SKColor dayColor, SKColor nightColor)
     {
         var dir = Path.Combine(Path.GetTempPath(), "BlueMarbleTests", Path.GetRandomFileName());

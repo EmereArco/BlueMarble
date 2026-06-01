@@ -35,6 +35,7 @@ public partial class App : Application
         Services.Logger.LogInformation("BlueMarble starting (version {Version})", AppInfo.Version);
 
         Services.Settings.Load();
+        Services.Settings.StartWatching();
         Services.Cache.PruneOlderThan(TimeSpan.FromDays(30));
         Services.TrayHost.Show();
         Services.Scheduler.Start();
@@ -93,7 +94,7 @@ public sealed class AppServices
             loggerFactory.CreateLogger<PrefetchRefreshController>());
         var scheduler = new RefreshScheduler(refresh, settings,
             loggerFactory.CreateLogger<RefreshScheduler>());
-        var trayHost = new TrayIconHost(loggerFactory.CreateLogger<TrayIconHost>(), refresh);
+        var trayHost = new TrayIconHost(loggerFactory.CreateLogger<TrayIconHost>(), refresh, settings);
 
         return new AppServices
         {
